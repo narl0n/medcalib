@@ -1,0 +1,30 @@
+# Local Jenkins for the MedCalib pipeline.
+#   cp .env.example .env   (then edit the values)
+#   docker compose up -d --build
+services:
+  jenkins:
+    build: .
+    image: medcalib-jenkins:local
+    container_name: medcalib-jenkins
+    # root is needed to use the mounted Docker socket; acceptable for a local
+    # lab setup, not for a shared production server.
+    user: root
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Docker Desktop's kubeconfig (read-only); the pipeline rewrites the
+      # server address so it is reachable from inside this container.
+      - ${KUBECONFIG_HOST_PATH:-~/.kube/config}:/kube/config:ro
+    networks:
+      - ci
+    restart: unless-stopped
+
+networks:
+  ci:
+    name: medcalib-ci
+
+volumes:
+  jenkins_home:
