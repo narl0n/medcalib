@@ -143,8 +143,11 @@ pipeline {
                     sed -E "s#https://(127\\.0\\.0\\.1|localhost):[0-9]+#https://${KIND_NODE}:6443#" \
                         /kube/config > "$KUBECONFIG"
                     kubectl config use-context docker-desktop
-                    kubectl apply -f k8s/
-                    kubectl set image deployment/medcalib-api api=${IMAGE}:${IMAGE_TAG}
+                    # Apply the manifests with the image tag of this build substituted in,
+                    # so Kubernetes never runs an image that was not built and tested here.
+                    sed "s#image: medcalib-api:latest#image: ${IMAGE}:${IMAGE_TAG}#" k8s/deployment.yaml \
+                      | kubectl apply -f -
+                    kubectl apply -f k8s/service.yaml
                     kubectl annotate deployment/medcalib-api \
                         kubernetes.io/change-cause="Jenkins build ${BUILD_NUMBER} (${IMAGE_TAG})" --overwrite
                     kubectl rollout status deployment/medcalib-api --timeout=180s
@@ -167,7 +170,10 @@ pipeline {
     }
 
     post {
-        success { echo "Deployed ${IMAGE}:${IMAGE_TAG} - API at http://localhost:30080/docs" }
+        success {
+            echo "Deployed ${IMAGE}:${IMAGE_TAG}. Open the API with: " +
+                 'kubectl port-forward svc/medcalib-api 30080:80 -> http://localhost:30080/docs'
+        }
         failure { echo 'Pipeline failed - see the stage log above.' }
     }
 }

@@ -63,10 +63,13 @@ Pipeline ([Jenkinsfile](Jenkinsfile)), triggered by every commit (SCM polling ev
 6. **Smoke test container**: starts the image, calls `/health` and `/predict`
 7. **Push to Docker Hub** (optional): runs when `DOCKERHUB_REPO` is set and a
    `dockerhub-creds` credential exists
-8. **Deploy to Kubernetes**: `kubectl apply` + rolling update on Docker Desktop Kubernetes
-9. **Verify deployment**: rollout status and an in-cluster health check
+8. **Load image into cluster**: imports the image into the kind node (`ctr images import`)
+9. **Deploy to Kubernetes**: `kubectl apply` with the build tag, rolling update
+10. **Verify deployment**: rollout status and an in-cluster health check
 
-After a successful run the API is served by Kubernetes at <http://localhost:30080/docs>.
+After a successful run the API is served by Kubernetes (2 replicas). Docker Desktop runs
+Kubernetes in kind mode, so NodePorts are not published on the host; open the API with
+`kubectl port-forward svc/medcalib-api 30080:80` and go to <http://localhost:30080/docs>.
 
 ## Layout
 
