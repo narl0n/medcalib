@@ -21,6 +21,7 @@ pipeline {
         IMAGE     = 'medcalib-api'
         IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT?.take(7) ?: 'local'}"
         SMOKE     = "medcalib-smoke-${env.BUILD_NUMBER}"
+        KIND_NODE = 'desktop-control-plane'   // Docker Desktop Kubernetes (kind mode) node
     }
 
     stages {
@@ -120,13 +121,26 @@ pipeline {
             }
         }
 
+        stage('Load image into cluster') {
+            steps {
+                // The kind node has its own containerd image store, so the freshly
+                // built image is imported into it (equivalent of `kind load docker-image`).
+                sh '''
+                    docker save ${IMAGE}:${IMAGE_TAG} \
+                      | docker exec -i ${KIND_NODE} ctr -n k8s.io images import --digests -
+                    docker exec ${KIND_NODE} crictl images | grep ${IMAGE}
+                '''
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             environment { KUBECONFIG = "${env.WORKSPACE}/.kubeconfig" }
             steps {
                 sh '''
-                    # Docker Desktop's kubeconfig points to 127.0.0.1, which inside the
-                    # Jenkins container is the container itself; use the host alias.
-                    sed -E 's#https://(127\\.0\\.0\\.1|localhost):6443#https://kubernetes.docker.internal:6443#' \
+                    # Docker Desktop's kubeconfig points to 127.0.0.1:<random port>, which
+                    # inside this container is the container itself; use the node's DNS
+                    # name on the shared "kind" network instead (it is in the API cert).
+                    sed -E "s#https://(127\\.0\\.0\\.1|localhost):[0-9]+#https://${KIND_NODE}:6443#" \
                         /kube/config > "$KUBECONFIG"
                     kubectl config use-context docker-desktop
                     kubectl apply -f k8s/

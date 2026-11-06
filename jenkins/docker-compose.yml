@@ -17,14 +17,19 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Docker Desktop's kubeconfig (read-only); the pipeline rewrites the
       # server address so it is reachable from inside this container.
-      - ${KUBECONFIG_HOST_PATH:-~/.kube/config}:/kube/config:ro
+      - ${KUBECONFIG_HOST_PATH}:/kube/config:ro
     networks:
       - ci
+      # Docker Desktop runs Kubernetes as a kind node container on this network;
+      # joining it lets Jenkins reach the API server at desktop-control-plane:6443.
+      - kind
     restart: unless-stopped
 
 networks:
   ci:
     name: medcalib-ci
+  kind:
+    external: true
 
 volumes:
   jenkins_home:
